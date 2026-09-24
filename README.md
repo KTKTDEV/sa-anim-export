@@ -1,72 +1,81 @@
 # SA Empty Anim Export (IFP)
 
-Export ท่าเคลื่อนไหวจาก Blender เป็นไฟล์ `.ifp` ของเกม GTA San Andreas
-พร้อมระบบเช็คชื่ออัตโนมัติ — ชื่อยาวเกินเกมเปิดไม่ติด จะโดนเตือนก่อนพัง
+Blender add-on that exports object-hierarchy animation to GTA San Andreas
+`.ifp` (ANP3), mirroring the 3ds Max `anim_export.ms` flow (Empty instead of
+Dummy). Every descendant under the root is exported as a bone track.
+Requires Blender 4.2+.
 
----
+Panel: View3D → `N` → `SA Anim`
 
-## มันคืออะไร
+## 1. Install
 
-ปกติ export IFP แล้วชื่อ object ยาวเกินไป เกมจะเปิดไฟล์ไม่ติดหรือแครช
-addon นี้เช็คชื่อให้ก่อน export:
+1. Zip the whole `sa-anim-export` folder (the zip must contain
+   `__init__.py` at its root).
+2. Blender → Edit → Preferences → Add-ons → Install from Disk → select
+   the zip.
+3. Enable `SA Empty Anim Export (IFP)`.
 
-| ชื่อยาว | ผล |
-|---|---|
-| ไม่เกิน 12 ตัวอักษร | ผ่าน ชื่อปลอดภัย |
-| 13–24 ตัวอักษร | เตือน (export ได้ แต่เกมอาจแครช) |
-| เกิน 24 ตัวอักษร | **ไม่ให้ export** ต้องย่อชื่อก่อน |
+## 2. Build the rig
 
-## ติดตั้ง
+1. Create an Empty as the root, then parent parts in a chain
+   (e.g. `halo_root` → `halo_pivot` → `halo_ring`). Meshes and Empties are
+   both accepted — **all** descendants are exported, like Max `getSubs`.
+2. Keep names short: **≤ 12 ASCII chars is safe** (`halo`, `gate`, `mill`).
+   The IFP bone field holds 24 bytes; the game itself is only reliable up
+   to ~12 chars.
 
-1. Zip โฟลเดอร์ `sa_empty_anim_export` ทั้งโฟลเดอร์
-2. Blender → Edit → Preferences → Add-ons → Install from Disk → เลือก zip
-3. เปิดสวิตช์ `SA Empty Anim Export (IFP)`
-4. แถบเครื่องมืออยู่ View3D → กด `N` → แท็บ `SA Anim`
+## 3. Export
 
-## วิธีใช้
+1. Set **Parent Object** to the root (or select the root in the viewport).
+2. Press **Get Hierarchy** — the bone list fills with every descendant.
+3. Keyframe the animation:
+   - Rotation keys (Euler / Quaternion / Axis-Angle) always count.
+   - Location keys count only where **Skip Pos (P)** is OFF. P is ON by
+     default (rotation-only, bone type 3); turn it off for
+     rotation+position (type 4).
+   - Use **Exclude** to drop an object from the export without re-picking
+     the hierarchy.
+4. Press **EXPORT** for a new `.ifp` file, or **APPEND** to add the
+   animation into an existing `.ifp`.
+5. Over-long names show their length in the list,
+   e.g. `Cupcake_Outline_0 (17)` — shorten the object name and press Get
+   Hierarchy again.
 
-1. สร้าง Empty เป็นตัวพ่อ แล้ว parent ชิ้นส่วนเป็นสาย (เช่น `halo_root` > `halo_pivot1` > `halo_ring`)
-2. ตั้งชื่อสั้นๆ (ไม่เกิน 12 ตัวอักษร เช่น `halo`, `gate`, `mill`)
-3. ช่อง Parent Object เลือกตัวพ่อ → กด **Get Hierarchy**
-4. key ท่า (rotation ได้ทุกแบบ, location key เฉพาะชิ้นที่ปิด Skip Pos)
-5. กด **EXPORT** (ไฟล์ใหม่) หรือ **APPEND** (ต่อใส่ไฟล์เดิม)
+## 4. Name rules
 
-> ชื่อในลิสต์ถ้ายาวเกินจะมีตัวเลขเตือน เช่น `Cupcake_Outline_0 (17)` — ย่อชื่อแล้วกด Get Hierarchy ใหม่
+| Length (ASCII) | Result                                                      |
+|----------------|-------------------------------------------------------------|
+| ≤ 12 chars     | Safe                                                        |
+| 13–24 chars    | Warning — exports, but the game may crash loading the IFP   |
+| > 24 chars     | **Export refused** — shorten and retry                      |
 
-## ดู log
+Non-ASCII characters are replaced with `_` when measuring/writing. The IFP
+internal name comes from the file name and is truncated to 24 chars if
+needed.
 
-กด **Show Log** หรือเปิด Text Editor ดู block `SA_Anim_Log`
+## 5. Timing
 
-## ปัญหาที่เจอบ่อย
+- Effective fps = `scene.render.fps / fps_base`;
+  key time = `(frame − frame_start) × 60 / fps`.
+- If an object has no keys, one bind-pose key is written at the current
+  frame.
+- If animation timing looks wrong in-game, check `frame_start` and scene
+  fps first.
 
-| อาการ | แก้ |
-|---|---|
-| `export refused ... exceed 24-char` | ย่อชื่อ object ให้สั้นกว่า 24 (แนะนำ ≤12) แล้ว export ใหม่ |
-| เตือน `exceed 12-char safe limit` | export ได้ แต่ย่อชื่อชัวร์กว่า |
-| `Hierarchy is empty` | root ไม่มีลูกเลย ต้องมีลูกอย่างน้อย 1 ตัว |
-| ท่าในเกมเวลาเพี้ยน | เช็ค `frame_start` กับ fps ของ scene |
+## 6. Log
 
-## ไฟล์ในโฟลเดอร์
+- Press **Show Log**, or open the `SA_Anim_Log` text block in the Text
+  Editor.
+- A copy is also saved to `sa_anim_export.log` next to the blend file (or
+  temp dir if unsaved). The **Log** field in the panel overrides the path.
 
-- `__init__.py` — หน้าตา + ปุ่มกด
-- `ifp.py` — ตัวเขียน/อ่านไฟล์ IFP
-- `log_tracker.py` — ระบบ log
-- `tests/` — เทส (`python tests/test_name_limits.py`)
+## 7. Troubleshooting
 
----
-
-## English
-
-Export object animation from Blender to GTA SA `.ifp`, mirroring the Max
-`anim_export.ms` flow (Empty instead of Dummy). Every descendant under the
-root object is exported as a bone track.
-
-**Name rules:** over 24 ASCII chars → export refused; over 12 chars →
-warning (the game may crash loading the IFP). Over-long names show their
-length in the list.
-
-**Install:** zip the folder → Preferences → Add-ons → Install from Disk →
-enable it. Panel: View3D → `N` → `SA Anim`.
-
-**Use:** parent parts under an Empty → pick it as Parent Object → Get
-Hierarchy → keyframe → EXPORT / APPEND.
+| Symptom                                         | Fix                                                              |
+|-------------------------------------------------|------------------------------------------------------------------|
+| `exceed 24-char IFP field, export refused`      | Shorten names below 24 chars (≤ 12 recommended), Get Hierarchy, retry |
+| `exceed 12-char safe limit` warning             | Exports fine, but shorten for safety                             |
+| `Hierarchy is empty`                            | Root has no children (need ≥ 1); press Get Hierarchy first       |
+| `Pick a root object first`                      | Set Parent Object / select root                                  |
+| `File not found, use Export for new files`      | APPEND needs an existing file; use EXPORT                        |
+| `All bones excluded`                            | Uncheck Exclude on at least one bone                             |
